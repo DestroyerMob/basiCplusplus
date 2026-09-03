@@ -1,0 +1,93 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Build BasicC",
+            "command": "cl.exe",
+            "args": [
+                "/std:c++20",
+                "/W4",
+                "/EHsc",
+                "/Zi",
+                "/nologo",
+                "/Fe${workspaceFolder}\\basicc.exe",
+                "${workspaceFolder}\\main.cpp",
+                "${workspaceFolder}\\lexer.cpp",
+                "${workspaceFolder}\\parser.cpp",
+                "${workspaceFolder}\\ast_printer.cpp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "cppbuild",
+            "label": "Build lexer tests",
+            "command": "cl.exe",
+            "args": [
+                "/std:c++20",
+                "/W4",
+                "/EHsc",
+                "/Zi",
+                "/nologo",
+                "/Fe${workspaceFolder}\\tests\\lexer_tests.exe",
+                "${workspaceFolder}\\tests\\lexer_tests.cpp",
+                "${workspaceFolder}\\lexer.cpp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "type": "cppbuild",
+            "label": "Build parser tests",
+            "command": "cl.exe",
+            "args": [
+                "/std:c++20",
+                "/W4",
+                "/EHsc",
+                "/Zi",
+                "/nologo",
+                "/Fe${workspaceFolder}\\tests\\parser_tests.exe",
+                "${workspaceFolder}\\tests\\parser_tests.cpp",
+                "${workspaceFolder}\\lexer.cpp",
+                "${workspaceFolder}\\parser.cpp",
+                "${workspaceFolder}\\ast_printer.cpp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Run lexer tests",
+            "type": "process",
+            "command": "${workspaceFolder}\\tests\\lexer_tests.exe",
+            "dependsOn": "Build lexer tests",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run parser tests",
+            "type": "process",
+            "command": "${workspaceFolder}\\tests\\parser_tests.exe",
+            "dependsOn": "Build parser tests",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run all tests",
+            "dependsOn": [
+                "Run lexer tests",
+                "Run parser tests"
+            ],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        }
+    ],
+    "version": "2.0.0"
+}
