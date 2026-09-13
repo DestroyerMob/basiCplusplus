@@ -28,7 +28,9 @@ private:
     struct ParseError {};
 
     DeclarationPtr parseTopLevelDeclaration();
-    std::unique_ptr<FunctionDeclaration> parseFunction(Token functionToken);
+    std::unique_ptr<StructDeclaration> parseStruct(Token structToken);
+    std::unique_ptr<FunctionDeclaration> parseFunction(Token functionToken, bool external = false,
+                                                      bool cpp = false);
     std::unique_ptr<GlobalVariableDeclaration> parseGlobalVariable();
     VariableBinding parseVariableBinding(bool consumeTerminator);
     TypeSyntax parseType();
@@ -48,6 +50,7 @@ private:
     ExpressionPtr parseLogicalAnd();
     ExpressionPtr parseBitwiseOr();
     ExpressionPtr parseBitwiseAnd();
+    ExpressionPtr parseSharedComparison();
     ExpressionPtr parseEquality();
     ExpressionPtr parseComparison();
     ExpressionPtr parseTerm();

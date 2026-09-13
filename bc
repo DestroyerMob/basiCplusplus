@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Run a BasicC source file directly. Compiler sources are rebuilt only when newer
+# than the cached compiler; each program gets a private, disposable executable.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: ./bc <file.bc> [build options]       Compile and run
+       ./bc run <file.bc> [build options]   Same as above
+       ./bc build <file.bc> [-o output]     Keep an executable without running
+       ./bc --check <file.bc>               Check without running
+
+Build options include --backend llvm, -O2, --link file, --cpp-header file,
+and -l library. Other compiler modes, such as --ast and --emit-c, also work.
+EOF
+}
+
+if [[ $# == 0 ]]; then usage; exit 2; fi
+if [[ $1 == --help || $1 == -h ]]; then usage; exit 0; fi
+
+mode=run
+case "$1" in
+    run|build|--check|--tokens|--ast|--emit-c|--emit-cpp|--emit-ir)
+        mode=$1
+        shift
+        ;;
+esac
+if [[ $# == 0 ]]; then usage >&2; exit 2; fi
+if [[ $mode == run ]]; then
+    # The run command owns its temporary output. Use build to retain a binary.
+    for argument in "$@"; do
+        if [[ $argument == -o ]]; then
+            echo 'Use ./bc build <file.bc> -o <output> to keep an executable.' >&2
+            exit 2
+        fi
+    done
+fi
+
+# Resolve compiler paths relative to this script, but leave the caller's working
+# directory intact so source paths, native link paths, and program I/O behave normally.
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+compiler="$root/build/basicc"
+sources=("$root/main.cpp" "$root/lexer.cpp" "$root/parser.cpp"
+         "$root/ast_printer.cpp" "$root/compiler.cpp" "$root/modules.cpp")
+rebuild=false
+if [[ ! -x $compiler ]]; then rebuild=true; fi
+for input in "${sources[@]}" "$root"/*.hpp "$root/bc"; do
+    if [[ $input -nt $compiler ]]; then rebuild=true; fi
+done
+
+mkdir -p -- "$root/build"
+scratch=$(mktemp -d "$root/build/.bc-XXXXXX")
+trap 'rm -rf -- "$scratch"' EXIT
+
+if [[ $rebuild == true ]]; then
+    toolchain=${CXX:-c++}
+    if ! command -v "$toolchain" >/dev/null 2>&1; then
+        echo "Cannot find C++ compiler '$toolchain'. Install Clang/GCC or set CXX to its executable." >&2
+        exit 1
+    fi
+    echo 'Building BasicC…' >&2
+    "$toolchain" -std=c++17 -Wall -Wextra -Wpedantic "${sources[@]}" -o "$scratch/basicc"
+    # Install only a successfully built compiler, including during concurrent runs.
+    mv -f -- "$scratch/basicc" "$compiler"
+fi
+
+if [[ $mode == run ]]; then
+    # Compilation diagnostics remain visible; stdout belongs to the user's program.
+    # set -e prevents running anything after a failed compilation and preserves
+    # the program's exit code. EXIT cleanup also runs when a program fails.
+    "$compiler" build "$@" -o "$scratch/program" >/dev/null
+    "$scratch/program"
+else
+    "$compiler" "$mode" "$@"
+fi

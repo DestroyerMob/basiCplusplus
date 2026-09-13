@@ -1,0 +1,10 @@
+// Build: build/basicc build examples/modules/main.bc -o build/modules_demo
+// Run:   ./build/modules_demo
+
+import "shared.bc";
+import "math.bc";
+
+fn main() -> int:
+    // shared.bc is loaded once even though math.bc also imports it.
+    print(bumped(Score(40)).value);
+    return 0;

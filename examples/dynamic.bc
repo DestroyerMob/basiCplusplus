@@ -1,0 +1,32 @@
+// Build: build/basicc build examples/dynamic.bc -o build/dynamic
+// Run:   ./build/dynamic
+
+struct Entry:
+    name: string;
+    value: any;
+
+fn describe(value: any):
+    print(type_name(value) + ": " + string(value));
+
+fn main() -> int:
+    // Only an explicit any value may change its payload type.
+    var answer: any = any(40);
+    answer = answer + any(2);
+    describe(answer);
+    print(cast<int>(answer));
+    answer = any("ready");
+    describe(answer);
+
+    // A typed any[] stores a mixture of boxed values. Boxing the array keeps
+    // its shared storage; extracting it checks the entire array type.
+    var values = [any(2), any("hello"), any(true)];
+    var boxed = any(values);
+    print(len(boxed));
+    var shared = cast<any[]>(boxed);
+    shared[0] = any(3);
+    print(values);
+
+    var entry = any(Entry("answer", any(42)));
+    print(cast<Entry>(entry).value);
+    print(any(2) and any(2) == any(2));
+    return 0;

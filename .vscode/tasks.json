@@ -14,7 +14,9 @@
                 "${workspaceFolder}\\main.cpp",
                 "${workspaceFolder}\\lexer.cpp",
                 "${workspaceFolder}\\parser.cpp",
-                "${workspaceFolder}\\ast_printer.cpp"
+                "${workspaceFolder}\\ast_printer.cpp",
+                "${workspaceFolder}\\compiler.cpp",
+                "${workspaceFolder}\\modules.cpp"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

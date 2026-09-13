@@ -4,6 +4,15 @@
 #include <utility>
 
 namespace basicc {
+namespace {
+
+bool isComparisonOperator(TokenType type) {
+    return type == TokenType::EqualEqual || type == TokenType::BangEqual ||
+           type == TokenType::Less || type == TokenType::LessEqual ||
+           type == TokenType::Greater || type == TokenType::GreaterEqual;
+}
+
+} // namespace
 
 Parser::Parser(const std::vector<Token>& tokens) : tokens_(tokens) {}
 
@@ -24,6 +33,24 @@ ParseResult Parser::parse() {
 }
 
 DeclarationPtr Parser::parseTopLevelDeclaration() {
+    if (match({TokenType::Import})) {
+        const auto location = previous().location;
+        const Token path = consume(TokenType::StringLiteral, "expected a quoted import path");
+        consumeStatementTerminator();
+        return std::make_unique<ImportDeclaration>(location, path);
+    }
+    if (match({TokenType::Struct})) return parseStruct(previous());
+    if (match({TokenType::Extern})) {
+        const Token external = previous();
+        bool cpp = false;
+        if (match({TokenType::StringLiteral})) {
+            const auto language = decodeStringLiteral(previous().lexeme);
+            if (language != "C" && language != "C++") fail(previous(), "extern language must be C or C++");
+            cpp = language == "C++";
+        }
+        consume(TokenType::Fn, "expected 'fn' after 'extern'");
+        return parseFunction(external, true, cpp);
+    }
     if (match({TokenType::Fn})) {
         return parseFunction(previous());
     }
@@ -31,21 +58,41 @@ DeclarationPtr Parser::parseTopLevelDeclaration() {
         return parseGlobalVariable();
     }
 
-    if (match({TokenType::Import, TokenType::Extern, TokenType::Unsafe,
-               TokenType::Struct})) {
-        fail(previous(), std::string(tokenTypeName(previous().type)) +
-                             " syntax is reserved but not supported yet");
+    if (match({TokenType::Unsafe})) {
+        fail(previous(), "unsafe blocks are allowed only inside functions");
     }
 
-    fail(peek(), "expected a function or global variable declaration");
+    fail(peek(), "expected a function, struct, or global variable declaration");
 }
 
-std::unique_ptr<FunctionDeclaration> Parser::parseFunction(Token functionToken) {
+std::unique_ptr<StructDeclaration> Parser::parseStruct(Token structToken) {
+    auto structure = std::make_unique<StructDeclaration>(structToken.location);
+    structure->name = consume(TokenType::Identifier, "expected a struct name").lexeme;
+    consume(TokenType::Colon, "expected ':' after the struct name");
+    consume(TokenType::Newline, "expected a newline after ':'");
+    consume(TokenType::Indent, "expected indented struct fields");
+    skipNewlines();
+    while (!check(TokenType::Dedent) && !atEnd()) {
+        if (check(TokenType::Var)) {
+            fail(peek(), "inferred struct fields are reserved but not supported yet; use 'name: type;'");
+        }
+        const Token name = consume(TokenType::Identifier, "expected a field name");
+        consume(TokenType::Colon, "expected ':' after the field name");
+        structure->fields.push_back({name.location, name.lexeme, parseType()});
+        consumeStatementTerminator();
+    }
+    consume(TokenType::Dedent, "expected the end of the struct fields");
+    if (structure->fields.empty()) fail(structToken, "a struct needs at least one field");
+    return structure;
+}
+
+std::unique_ptr<FunctionDeclaration> Parser::parseFunction(Token functionToken, bool external, bool cpp) {
     const Token name = consume(TokenType::Identifier,
                                "expected a function name after 'fn'");
     auto function =
         std::make_unique<FunctionDeclaration>(functionToken.location);
     function->name = name.lexeme;
+    function->external = external;
 
     consume(TokenType::LeftParen, "expected '(' after the function name");
     if (!check(TokenType::RightParen)) {
@@ -64,7 +111,34 @@ std::unique_ptr<FunctionDeclaration> Parser::parseFunction(Token functionToken) 
     if (match({TokenType::Arrow})) {
         function->returnType = parseType();
     }
-    function->body = parseRequiredBlock();
+    if (external) {
+        if (!function->returnType) fail(peek(), "extern functions require an explicit return type");
+        if (cpp) {
+            function->cppTarget = name.lexeme;
+            if (match({TokenType::Assign})) {
+                const Token target = consume(TokenType::StringLiteral, "expected a quoted C++ function name");
+                function->cppTarget = decodeStringLiteral(target.lexeme);
+                // Only qualified identifiers enter generated C++; never splice
+                // an arbitrary source expression from the quoted binding.
+                const auto& text = function->cppTarget;
+                std::size_t i = text.rfind("::", 0) == 0 ? 2 : 0;
+                const auto letter = [](char c) {
+                    return c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+                };
+                for (;;) {
+                    if (i == text.size() || !letter(text[i])) fail(target, "expected a qualified C++ identifier");
+                    ++i;
+                    while (i < text.size() && (letter(text[i]) || (text[i] >= '0' && text[i] <= '9'))) ++i;
+                    if (i == text.size()) break;
+                    if (text.compare(i, 2, "::") != 0) fail(target, "expected a qualified C++ identifier");
+                    i += 2;
+                }
+            }
+        }
+        consumeStatementTerminator();
+    } else {
+        function->body = parseRequiredBlock();
+    }
     return function;
 }
 
@@ -103,25 +177,38 @@ VariableBinding Parser::parseVariableBinding(bool consumeTerminator) {
 
 TypeSyntax Parser::parseType() {
     const Token typeToken = peek();
+    TypeSyntax type{TypeKind::Named, typeToken.lexeme, typeToken.location};
     if (match({TokenType::IntType})) {
-        return {TypeKind::Int, "int", typeToken.location};
+        type.kind = TypeKind::Int;
+        type.name = "int";
+    } else if (match({TokenType::FloatType})) {
+        type.kind = TypeKind::Float;
+        type.name = "float";
+    } else if (match({TokenType::BoolType})) {
+        type.kind = TypeKind::Bool;
+        type.name = "bool";
+    } else if (match({TokenType::StringType})) {
+        type.kind = TypeKind::String;
+        type.name = "string";
+    } else if (!match({TokenType::Identifier})) {
+        fail(typeToken, "expected a type name");
     }
-    if (match({TokenType::FloatType})) {
-        return {TypeKind::Float, "float", typeToken.location};
+    while (check(TokenType::LeftBracket) || check(TokenType::Star)) {
+        if (match({TokenType::Star})) type.suffixes.push_back(TypeSuffix::Pointer);
+        else {
+            advance();
+            consume(TokenType::RightBracket, "expected ']' in an array type");
+            type.suffixes.push_back(TypeSuffix::Array);
+        }
     }
-    if (match({TokenType::BoolType})) {
-        return {TypeKind::Bool, "bool", typeToken.location};
-    }
-    if (match({TokenType::StringType})) {
-        return {TypeKind::String, "string", typeToken.location};
-    }
-    if (match({TokenType::Identifier})) {
-        return {TypeKind::Named, typeToken.lexeme, typeToken.location};
-    }
-    fail(typeToken, "expected a type name");
+    return type;
 }
 
 StatementPtr Parser::parseStatement() {
+    if (match({TokenType::Unsafe})) {
+        const auto location = previous().location;
+        return std::make_unique<UnsafeStatement>(location, parseRequiredBlock());
+    }
     if (isVariableDeclarationStart()) {
         return std::make_unique<VariableDeclarationStatement>(
             parseVariableBinding(true));
@@ -138,7 +225,7 @@ StatementPtr Parser::parseStatement() {
     if (match({TokenType::For})) {
         return parseForStatement(previous());
     }
-    if (match({TokenType::Import, TokenType::Extern, TokenType::Unsafe,
+    if (match({TokenType::Import, TokenType::Extern,
                TokenType::Struct, TokenType::Fn})) {
         fail(previous(), std::string(tokenTypeName(previous().type)) +
                              " syntax is not supported in this block");
@@ -313,13 +400,55 @@ ExpressionPtr Parser::parseBitwiseOr() {
 }
 
 ExpressionPtr Parser::parseBitwiseAnd() {
-    ExpressionPtr expression = parseEquality();
+    ExpressionPtr expression = parseSharedComparison();
     while (match({TokenType::Ampersand})) {
         const Token operation = previous();
         expression = std::make_unique<BinaryExpression>(
-            std::move(expression), operation, parseEquality());
+            std::move(expression), operation, parseSharedComparison());
     }
     return expression;
+}
+
+ExpressionPtr Parser::parseSharedComparison() {
+    ExpressionPtr first = parseEquality();
+    if (!match({TokenType::And, TokenType::Or})) {
+        return first;
+    }
+
+    const Token grouping = previous();
+    if (first->kind == ExpressionKind::Binary &&
+        isComparisonOperator(
+            static_cast<const BinaryExpression&>(*first).operation.type)) {
+        fail(grouping,
+             "'and' and 'or' group values before one shared comparison; "
+             "use '&&' or '||' to combine conditions");
+    }
+
+    std::vector<ExpressionPtr> operands;
+    operands.push_back(std::move(first));
+    operands.push_back(parseTerm());
+    while (match({TokenType::And, TokenType::Or})) {
+        if (previous().type != grouping.type) {
+            fail(previous(), "cannot mix 'and' and 'or' in one shared comparison; "
+                             "combine separate comparisons with '&&' or '||'");
+        }
+        operands.push_back(parseTerm());
+    }
+
+    if (!isComparisonOperator(peek().type)) {
+        fail(peek(), "expected '==', '!=', '<', '<=', '>', or '>=' "
+                     "after the values in a shared comparison");
+    }
+    const Token operation = advance();
+    ExpressionPtr state = parseTerm();
+    if (isComparisonOperator(peek().type) || check(TokenType::And) ||
+        check(TokenType::Or)) {
+        fail(peek(), "a shared comparison has one operator and one target; "
+                     "use '&&' or '||' to combine conditions");
+    }
+
+    return std::make_unique<SharedComparisonExpression>(
+        std::move(operands), grouping, operation, std::move(state));
 }
 
 ExpressionPtr Parser::parseEquality() {
@@ -409,12 +538,41 @@ ExpressionPtr Parser::parsePostfix() {
 }
 
 ExpressionPtr Parser::parsePrimary() {
+    if (match({TokenType::LeftBracket})) {
+        auto array = std::make_unique<ArrayExpression>(previous().location);
+        if (!check(TokenType::RightBracket)) {
+            do {
+                array->elements.push_back(parseExpression());
+            } while (match({TokenType::Comma}) && !check(TokenType::RightBracket));
+        }
+        consume(TokenType::RightBracket, "expected ']' after the array elements");
+        return array;
+    }
     if (match({TokenType::IntegerLiteral, TokenType::FloatLiteral,
-               TokenType::StringLiteral, TokenType::True, TokenType::False})) {
+               TokenType::StringLiteral, TokenType::True, TokenType::False, TokenType::Null})) {
         return std::make_unique<LiteralExpression>(previous());
     }
     if (match({TokenType::Identifier})) {
+        if (previous().lexeme == "cast") {
+            const auto location = previous().location;
+            consume(TokenType::Less, "expected '<type>' after 'cast'");
+            auto target = parseType();
+            consume(TokenType::Greater, "expected '>' after the cast type");
+            consume(TokenType::LeftParen, "expected '(' before the cast value");
+            auto value = parseExpression();
+            consume(TokenType::RightParen, "expected ')' after the cast value");
+            return std::make_unique<CastExpression>(location, std::move(target), std::move(value));
+        }
         return std::make_unique<IdentifierExpression>(previous());
+    }
+    if (match({TokenType::IntType, TokenType::FloatType, TokenType::StringType})) {
+        // Type names in expressions denote explicit conversions. Keep the
+        // original alias spelling; ordinary postfix parsing handles the call.
+        const Token conversion = previous();
+        if (!check(TokenType::LeftParen)) {
+            fail(peek(), "expected '(' after the conversion type");
+        }
+        return std::make_unique<IdentifierExpression>(conversion);
     }
     if (match({TokenType::LeftParen})) {
         const SourceLocation groupingLocation = previous().location;
@@ -430,7 +588,21 @@ bool Parser::isVariableDeclarationStart() const {
     if (check(TokenType::Var)) {
         return true;
     }
-    if (isTypeStart(peek().type) && peek(1).type == TokenType::Identifier) {
+    std::size_t afterType = 1;
+    bool pointer = false;
+    while (true) {
+        if (peek(afterType).type == TokenType::Star) {
+            pointer = true;
+            ++afterType;
+        } else if (peek(afterType).type == TokenType::LeftBracket &&
+                   peek(afterType + 1).type == TokenType::RightBracket) afterType += 2;
+        else break;
+    }
+    // Without a symbol table, `a * b;` is multiplication. A named pointer
+    // declaration is distinguishable by its required initializer.
+    if (pointer && peek().type == TokenType::Identifier &&
+        peek(afterType + 1).type != TokenType::Assign) return false;
+    if (isTypeStart(peek().type) && peek(afterType).type == TokenType::Identifier) {
         return true;
     }
     return false;
@@ -443,6 +615,12 @@ bool Parser::isTypeStart(TokenType type) const {
 }
 
 bool Parser::isAssignable(const Expression& expression) const {
+    if (expression.kind == ExpressionKind::Grouping) {
+        return isAssignable(*static_cast<const GroupingExpression&>(expression).expression);
+    }
+    if (expression.kind == ExpressionKind::Unary) {
+        return static_cast<const UnaryExpression&>(expression).operation.type == TokenType::Star;
+    }
     return expression.kind == ExpressionKind::Identifier ||
            expression.kind == ExpressionKind::Member ||
            expression.kind == ExpressionKind::Index;
@@ -451,11 +629,12 @@ bool Parser::isAssignable(const Expression& expression) const {
 bool Parser::isStatementStart(TokenType type) const {
     return type == TokenType::Var || type == TokenType::Return ||
            type == TokenType::If || type == TokenType::While ||
-           type == TokenType::For || isTypeStart(type);
+           type == TokenType::For || type == TokenType::Unsafe || isTypeStart(type);
 }
 
 bool Parser::isDeclarationStart() const {
-    return check(TokenType::Fn) || isVariableDeclarationStart();
+    return check(TokenType::Fn) || check(TokenType::Extern) || check(TokenType::Struct) ||
+           check(TokenType::Import) || isVariableDeclarationStart();
 }
 
 void Parser::consumeStatementTerminator() {

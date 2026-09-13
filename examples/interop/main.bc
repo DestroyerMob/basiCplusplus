@@ -1,0 +1,13 @@
+// Build: build/basicc build examples/interop/main.bc --link examples/interop/native.c -o build/interop
+// Run:   ./build/interop
+
+extern fn native_answer() -> int;
+extern fn native_half(value: double) -> float;
+extern fn abs(value: c_int) -> c_int;
+
+fn main() -> int:
+    unsafe:
+        print(native_answer());
+        print(native_half(5.0));
+        print(abs(-7));
+    return 0;

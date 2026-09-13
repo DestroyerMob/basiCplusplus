@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.16)
+project(BasicC LANGUAGES CXX)
+
+add_executable(basicc main.cpp lexer.cpp parser.cpp ast_printer.cpp compiler.cpp modules.cpp)
+target_compile_features(basicc PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(basicc PRIVATE /W4)
+else()
+    target_compile_options(basicc PRIVATE -Wall -Wextra -Wpedantic)
+endif()

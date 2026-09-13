@@ -1,0 +1,25 @@
+// Build with: build/basicc build examples/first_program.bc -o build/first_program
+// Run with:   ./build/first_program
+
+fn square(value: int):
+    return value * value;
+
+fn main() -> int:
+    var a = square(2);
+    var b = 4;
+
+    print(a);
+    print(a and b == 4);
+    print(a or b == 2);
+
+    var total = 0;
+    for (var i = 1; i <= 5; i = i + 1):
+        total = total + square(i);
+    print(total);
+
+    if a and b == 4:
+        print(true);
+    else:
+        print(false);
+
+    return 0;

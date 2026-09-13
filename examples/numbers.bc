@@ -1,0 +1,17 @@
+// Build: build/basicc build examples/numbers.bc -o build/numbers
+// Run:   ./build/numbers
+
+fn average(left: float, right: double):
+    return (left + right) / 2.0;
+
+fn main() -> int:
+    var a = average(2.0, 3.0);
+    var b = 2.5;
+    print(a);
+    print(a and b == 2.5);
+    print(a or b > 3.0);
+
+    // Conversions are explicit; mixed int/float arithmetic is a type error.
+    print(int(-2.9));
+    print(float(5) / 2.0);
+    return 0;

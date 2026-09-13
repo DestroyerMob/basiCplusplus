@@ -5,15 +5,17 @@
 namespace basicc {
 namespace {
 
-std::string_view canonicalTypeName(const TypeSyntax& type) {
+std::string canonicalTypeName(const TypeSyntax& type) {
+    std::string name = type.name;
     switch (type.kind) {
-    case TypeKind::Int: return "int";
-    case TypeKind::Float: return "float";
-    case TypeKind::Bool: return "bool";
-    case TypeKind::String: return "string";
-    case TypeKind::Named: return type.name;
+    case TypeKind::Int: name = "int"; break;
+    case TypeKind::Float: name = "float"; break;
+    case TypeKind::Bool: name = "bool"; break;
+    case TypeKind::String: name = "string"; break;
+    case TypeKind::Named: break;
     }
-    return "<unknown>";
+    for (const auto suffix : type.suffixes) name += suffix == TypeSuffix::Array ? "[]" : "*";
+    return name;
 }
 
 } // namespace
@@ -30,9 +32,21 @@ std::string AstPrinter::print(const Program& program) {
 void AstPrinter::printDeclaration(const Declaration& declaration,
                                   std::size_t depth) {
     switch (declaration.kind) {
+    case DeclarationKind::Import:
+        writeLine(depth, "Import " + static_cast<const ImportDeclaration&>(declaration).path.lexeme);
+        return;
+    case DeclarationKind::Struct: {
+        const auto& structure = static_cast<const StructDeclaration&>(declaration);
+        writeLine(depth, "Struct " + structure.name);
+        for (const auto& field : structure.fields) {
+            writeLine(depth + 1, "Field " + field.name + ": " + canonicalTypeName(field.type));
+        }
+        return;
+    }
     case DeclarationKind::Function: {
         const auto& function = static_cast<const FunctionDeclaration&>(declaration);
-        writeLine(depth, "Function " + function.name);
+        writeLine(depth, std::string(function.external ? "ExternFunction " : "Function ") + function.name);
+        if (!function.cppTarget.empty()) writeLine(depth + 1, "C++ target " + function.cppTarget);
         writeLine(depth + 1, "Parameters");
         for (const Parameter& parameter : function.parameters) {
             writeLine(depth + 2,
@@ -44,7 +58,7 @@ void AstPrinter::printDeclaration(const Declaration& declaration,
         } else {
             writeLine(depth + 1, "Returns <inferred>");
         }
-        printStatement(*function.body, depth + 1);
+        if (function.body) printStatement(*function.body, depth + 1);
         return;
     }
     case DeclarationKind::GlobalVariable: {
@@ -68,6 +82,10 @@ void AstPrinter::printBinding(const VariableBinding& binding, std::size_t depth)
 
 void AstPrinter::printStatement(const Statement& statement, std::size_t depth) {
     switch (statement.kind) {
+    case StatementKind::Unsafe:
+        writeLine(depth, "Unsafe");
+        printStatement(*static_cast<const UnsafeStatement&>(statement).body, depth + 1);
+        return;
     case StatementKind::Block: {
         const auto& block = static_cast<const BlockStatement&>(statement);
         writeLine(depth, "Block");
@@ -152,6 +170,13 @@ void AstPrinter::printStatement(const Statement& statement, std::size_t depth) {
 void AstPrinter::printExpression(const Expression& expression,
                                  std::size_t depth) {
     switch (expression.kind) {
+    case ExpressionKind::Array: {
+        writeLine(depth, "Array");
+        for (const auto& element : static_cast<const ArrayExpression&>(expression).elements) {
+            printExpression(*element, depth + 1);
+        }
+        return;
+    }
     case ExpressionKind::Literal: {
         const auto& literal = static_cast<const LiteralExpression&>(expression);
         writeLine(depth,
@@ -184,6 +209,19 @@ void AstPrinter::printExpression(const Expression& expression,
         printExpression(*binary.right, depth + 1);
         return;
     }
+    case ExpressionKind::SharedComparison: {
+        const auto& comparison =
+            static_cast<const SharedComparisonExpression&>(expression);
+        writeLine(depth, "SharedComparison " + comparison.grouping.lexeme + " " +
+                             comparison.operation.lexeme);
+        writeLine(depth + 1, "Operands");
+        for (const ExpressionPtr& operand : comparison.operands) {
+            printExpression(*operand, depth + 2);
+        }
+        writeLine(depth + 1, "State");
+        printExpression(*comparison.state, depth + 2);
+        return;
+    }
     case ExpressionKind::Conditional: {
         const auto& conditional =
             static_cast<const ConditionalExpression&>(expression);
@@ -204,6 +242,12 @@ void AstPrinter::printExpression(const Expression& expression,
         printExpression(*assignment.target, depth + 2);
         writeLine(depth + 1, "Value");
         printExpression(*assignment.value, depth + 2);
+        return;
+    }
+    case ExpressionKind::Cast: {
+        const auto& cast = static_cast<const CastExpression&>(expression);
+        writeLine(depth, "Cast " + canonicalTypeName(cast.target));
+        printExpression(*cast.value, depth + 1);
         return;
     }
     case ExpressionKind::Call: {

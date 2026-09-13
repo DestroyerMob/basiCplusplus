@@ -1,0 +1,16 @@
+// Build: build/basicc build examples/cpp/main.bc --cpp-header examples/cpp/native.hpp --link examples/cpp/native.cpp -o build/cpp_demo
+// Run:   ./build/cpp_demo
+
+extern "C++" fn clamp_int(value: int, low: int, high: int) -> int = "demo::clamp";
+extern "C++" fn clamp_float(value: float, low: float, high: float) -> float = "demo::clamp";
+extern "C++" fn root(value: float) -> float = "demo::positive_root";
+extern "C++" fn store(destination: int*, value: int) -> void = "demo::store";
+
+fn main() -> int:
+    var bounded = 0;
+    unsafe:
+        store(&bounded, clamp_int(42, 0, 10));
+        print(bounded);
+        print(clamp_float(2.5, 0.0, 10.0));
+        print(root(9.0));
+    return 0;

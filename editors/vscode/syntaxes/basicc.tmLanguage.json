@@ -1,0 +1,65 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "BasicC",
+  "scopeName": "source.basicc",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    {
+      "match": "\\b(fn|func|function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.function.basicc" },
+        "2": { "name": "entity.name.function.basicc" }
+      }
+    },
+    {
+      "match": "\\b(struct)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.struct.basicc" },
+        "2": { "name": "entity.name.type.struct.basicc" }
+      }
+    },
+    {
+      "begin": "\\b(cast)\\s*(<)",
+      "beginCaptures": {
+        "1": { "name": "support.function.builtin.basicc" },
+        "2": { "name": "punctuation.definition.type.begin.basicc" }
+      },
+      "end": ">|$",
+      "endCaptures": { "0": { "name": "punctuation.definition.type.end.basicc" } },
+      "patterns": [
+        { "name": "storage.type.basicc", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" },
+        { "name": "keyword.operator.type.basicc", "match": "\\*|\\[|\\]" }
+      ]
+    },
+    { "name": "keyword.control.basicc", "match": "\\b(if|else|while|for|return|import)\\b" },
+    { "name": "storage.modifier.basicc", "match": "\\b(extern|unsafe)\\b" },
+    { "name": "storage.type.variable.basicc", "match": "\\b(var|variable)\\b" },
+    { "name": "keyword.operator.logical.basicc", "match": "\\b(and|or)\\b" },
+    { "name": "constant.language.basicc", "match": "\\b(true|false|null)\\b" },
+    { "name": "support.function.builtin.basicc", "match": "\\b(print|input|len|type_name|any|int|integer|float|double|string|str)\\b(?=\\s*\\()" },
+    { "name": "storage.type.basicc", "match": "\\b(int|integer|float|double|bool|boolean|string|str|void|any|c_int)\\b" },
+    { "name": "constant.numeric.basicc", "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\b" },
+    { "name": "entity.name.function.basicc", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=\\s*\\()" },
+    { "name": "keyword.operator.basicc", "match": "->|==|!=|<=|>=|&&|\\|\\||[+*/%=!<>&|?\\-]" },
+    { "name": "punctuation.section.group.basicc", "match": "[()\\[\\]]" },
+    { "name": "punctuation.separator.basicc", "match": "[,:;.]" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.basicc", "begin": "//", "end": "$" },
+        { "name": "comment.block.basicc", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.basicc",
+      "begin": "\"",
+      "end": "\"|$",
+      "patterns": [
+        { "name": "constant.character.escape.basicc", "match": "\\\\[\"\\\\nrt0]" },
+        { "name": "invalid.illegal.escape.basicc", "match": "\\\\." }
+      ]
+    }
+  }
+}

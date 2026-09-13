@@ -19,7 +19,7 @@ struct LexResult {
 
 class Lexer {
 public:
-    explicit Lexer(std::string_view source);
+    explicit Lexer(std::string_view source, std::string file = {});
 
     LexResult lex();
 
@@ -47,6 +47,7 @@ private:
     void addError(SourceLocation errorLocation, std::string message);
 
     std::string_view source_;
+    std::string file_;
     std::size_t position_ = 0;
     std::size_t line_ = 1;
     std::size_t column_ = 1;

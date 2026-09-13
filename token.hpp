@@ -64,11 +64,15 @@ enum class TokenType {
     Struct,
     True,
     False,
+    Null,
+    And,
+    Or,
 };
 
 struct SourceLocation {
     std::size_t line = 1;
     std::size_t column = 1;
+    std::string file{};
 };
 
 struct Token {
@@ -83,5 +87,7 @@ struct Diagnostic {
 };
 
 std::string_view tokenTypeName(TokenType type);
+// Call only after the lexer has validated a quoted string token.
+std::string decodeStringLiteral(const std::string& spelling);
 
 } // namespace basicc

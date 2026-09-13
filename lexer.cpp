@@ -35,6 +35,8 @@ const std::unordered_map<std::string_view, TokenType> keywords{
     {"import", TokenType::Import},     {"extern", TokenType::Extern},
     {"unsafe", TokenType::Unsafe},     {"struct", TokenType::Struct},
     {"true", TokenType::True},         {"false", TokenType::False},
+    {"and", TokenType::And},           {"or", TokenType::Or},
+    {"null", TokenType::Null},
 };
 
 } // namespace
@@ -93,12 +95,37 @@ std::string_view tokenTypeName(TokenType type) {
     case TokenType::Struct: return "Struct";
     case TokenType::True: return "True";
     case TokenType::False: return "False";
+    case TokenType::Null: return "Null";
+    case TokenType::And: return "And";
+    case TokenType::Or: return "Or";
     }
 
     return "Unknown";
 }
 
-Lexer::Lexer(std::string_view source) : source_(source) {}
+std::string decodeStringLiteral(const std::string& spelling) {
+    std::string value;
+    for (std::size_t i = 1; i + 1 < spelling.size(); ++i) {
+        char byte = spelling[i];
+        if (byte == '\\') {
+            // The lexer has already validated the escape. Decode here once so
+            // BasicC's \0 followed by a digit never becomes a C octal escape.
+            byte = spelling[++i];
+            switch (byte) {
+            case 'n': byte = '\n'; break;
+            case 'r': byte = '\r'; break;
+            case 't': byte = '\t'; break;
+            case '0': byte = '\0'; break;
+            default: break;
+            }
+        }
+        value += byte;
+    }
+    return value;
+}
+
+Lexer::Lexer(std::string_view source, std::string file)
+    : source_(source), file_(std::move(file)) {}
 
 LexResult Lexer::lex() {
     if (source_.size() >= 3 &&
@@ -144,6 +171,13 @@ LexResult Lexer::lex() {
         addSyntheticToken(TokenType::Dedent, location());
     }
     addSyntheticToken(TokenType::EndOfFile, location());
+
+    // Attach the origin once after scanning, including synthetic tokens and
+    // diagnostics, so imported AST nodes retain their own file locations.
+    if (!file_.empty()) {
+        for (auto& token : result_.tokens) token.location.file = file_;
+        for (auto& diagnostic : result_.diagnostics) diagnostic.location.file = file_;
+    }
 
     return std::move(result_);
 }

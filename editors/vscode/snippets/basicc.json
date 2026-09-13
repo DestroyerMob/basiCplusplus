@@ -1,0 +1,62 @@
+{
+  "Main function": {
+    "prefix": "main",
+    "body": ["fn main() -> int:", "\t$0", "\treturn 0;"],
+    "description": "Executable entry point"
+  },
+  "Function": {
+    "prefix": "fn",
+    "body": ["fn ${1:name}(${2:value: int}) -> ${3:int}:", "\t$0"],
+    "description": "Function with typed parameters and return"
+  },
+  "Variable": {
+    "prefix": "var",
+    "body": "var ${1:name} = ${2:value};$0",
+    "description": "Infer a variable's type from its initializer"
+  },
+  "If / else": {
+    "prefix": "ifelse",
+    "body": ["if ${1:condition}:", "\t${2}", "else:", "\t$0"],
+    "description": "Conditional branches"
+  },
+  "For loop": {
+    "prefix": "for",
+    "body": ["for (var ${1:i} = 0; ${1:i} < ${2:count}; ${1:i} = ${1:i} + 1):", "\t$0"],
+    "description": "Counted loop"
+  },
+  "While loop": {
+    "prefix": "while",
+    "body": ["while ${1:condition}:", "\t$0"],
+    "description": "Condition-controlled loop"
+  },
+  "Struct": {
+    "prefix": "struct",
+    "body": ["struct ${1:Name}:", "\t${2:field}: ${3:int};$0"],
+    "description": "Struct with a typed field"
+  },
+  "Unsafe block": {
+    "prefix": "unsafe",
+    "body": ["unsafe:", "\t$0"],
+    "description": "Explicit scope for pointer operations and foreign calls"
+  },
+  "Print": {
+    "prefix": "print",
+    "body": "print(${1:value});$0",
+    "description": "Print a value and newline"
+  },
+  "Import": {
+    "prefix": "import",
+    "body": "import \"${1:module.bc}\";$0",
+    "description": "Import a source file relative to this file"
+  },
+  "C++ binding": {
+    "prefix": "externcpp",
+    "body": "extern \"C++\" fn ${1:name}(${2:value: int}) -> ${3:int} = \"${4:namespace::function}\";$0",
+    "description": "Bind a C++ function through a generated C ABI bridge"
+  },
+  "Checked dynamic cast": {
+    "prefix": "cast",
+    "body": "cast<${1:int}>(${2:value})$0",
+    "description": "Extract an exact type from any"
+  }
+}

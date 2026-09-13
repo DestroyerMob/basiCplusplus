@@ -1,0 +1,5 @@
+// Shared declarations can be imported by more than one module.
+struct Score:
+    value: int;
+
+var offset = 1;

@@ -1,0 +1,31 @@
+{
+  "name": "basicc-language",
+  "displayName": "BasicC",
+  "description": "BasicC syntax highlighting, indentation, and snippets for .bc files.",
+  "version": "0.1.0",
+  "publisher": "basicc-local",
+  "private": true,
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Programming Languages", "Snippets"],
+  "contributes": {
+    "languages": [{
+      "id": "basicc",
+      "aliases": ["BasicC", "basicc"],
+      "extensions": [".bc"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "basicc",
+      "scopeName": "source.basicc",
+      "path": "./syntaxes/basicc.tmLanguage.json"
+    }],
+    "snippets": [{ "language": "basicc", "path": "./snippets/basicc.json" }],
+    "configurationDefaults": {
+      "[basicc]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+import "shared.bc";
+
+// Dependencies initialize first, so imported globals are available here.
+var step = offset + 1;
+
+fn bumped(score: Score) -> Score:
+    return Score(score.value + step);

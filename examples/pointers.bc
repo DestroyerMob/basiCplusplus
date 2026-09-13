@@ -1,0 +1,34 @@
+// Build: build/basicc build examples/pointers.bc --link examples/interop/native.c -o build/pointers
+// Run:   ./build/pointers
+
+extern fn native_set_answer(value: int*) -> void;
+
+fn increment(value: int*):
+    unsafe:
+        *value = *value + 1;
+
+fn borrowed(value: int*) -> int*:
+    return value;
+
+fn stored() -> int*:
+    // Array storage lives until process exit, so this element may be returned.
+    var values = [10];
+    unsafe:
+        return &values[0];
+
+fn main() -> int:
+    var value = 1;
+    var none: int* = null;
+    unsafe:
+        var pointer = borrowed(&value);
+        increment(pointer);
+        print(*pointer);
+        native_set_answer(pointer);
+        print(value);
+        print(pointer and pointer == &value);
+        print(none == null);
+
+        var persistent = stored();
+        *persistent = 11;
+        print(*persistent);
+    return 0;

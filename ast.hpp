@@ -18,10 +18,13 @@ enum class TypeKind {
     Named,
 };
 
+enum class TypeSuffix { Array, Pointer };
+
 struct TypeSyntax {
     TypeKind kind;
     std::string name;
     SourceLocation location;
+    std::vector<TypeSuffix> suffixes{};
 };
 
 enum class ExpressionKind {
@@ -30,11 +33,14 @@ enum class ExpressionKind {
     Grouping,
     Unary,
     Binary,
+    SharedComparison,
     Conditional,
     Assignment,
     Call,
     Index,
     Member,
+    Array,
+    Cast,
 };
 
 struct Expression {
@@ -47,6 +53,15 @@ struct Expression {
 };
 
 using ExpressionPtr = std::unique_ptr<Expression>;
+
+struct CastExpression final : Expression {
+    CastExpression(SourceLocation location, TypeSyntax targetType, ExpressionPtr source)
+        : Expression(ExpressionKind::Cast, location), target(std::move(targetType)),
+          value(std::move(source)) {}
+
+    TypeSyntax target;
+    ExpressionPtr value;
+};
 
 struct LiteralExpression final : Expression {
     explicit LiteralExpression(Token literalToken)
@@ -91,6 +106,21 @@ struct BinaryExpression final : Expression {
     ExpressionPtr left;
     Token operation;
     ExpressionPtr right;
+};
+
+struct SharedComparisonExpression final : Expression {
+    SharedComparisonExpression(std::vector<ExpressionPtr> comparedValues,
+                               Token groupToken, Token comparisonToken,
+                               ExpressionPtr sharedState)
+        : Expression(ExpressionKind::SharedComparison, groupToken.location),
+          operands(std::move(comparedValues)), grouping(std::move(groupToken)),
+          operation(std::move(comparisonToken)), state(std::move(sharedState)) {}
+
+    std::vector<ExpressionPtr> operands;
+    Token grouping;
+    Token operation;
+    // Preserve one target expression for later type checking and evaluation.
+    ExpressionPtr state;
 };
 
 struct ConditionalExpression final : Expression {
@@ -147,6 +177,13 @@ struct MemberExpression final : Expression {
     std::string member;
 };
 
+struct ArrayExpression final : Expression {
+    explicit ArrayExpression(SourceLocation location)
+        : Expression(ExpressionKind::Array, location) {}
+
+    std::vector<ExpressionPtr> elements;
+};
+
 struct VariableBinding {
     SourceLocation location;
     std::string name;
@@ -162,6 +199,7 @@ enum class StatementKind {
     If,
     While,
     For,
+    Unsafe,
 };
 
 struct Statement {
@@ -180,6 +218,13 @@ struct BlockStatement final : Statement {
         : Statement(StatementKind::Block, sourceLocation) {}
 
     std::vector<StatementPtr> statements;
+};
+
+struct UnsafeStatement final : Statement {
+    UnsafeStatement(SourceLocation location, std::unique_ptr<BlockStatement> contents)
+        : Statement(StatementKind::Unsafe, std::move(location)), body(std::move(contents)) {}
+
+    std::unique_ptr<BlockStatement> body;
 };
 
 struct VariableDeclarationStatement final : Statement {
@@ -246,6 +291,8 @@ struct ForStatement final : Statement {
 enum class DeclarationKind {
     Function,
     GlobalVariable,
+    Struct,
+    Import,
 };
 
 struct Declaration {
@@ -259,10 +306,27 @@ struct Declaration {
 
 using DeclarationPtr = std::unique_ptr<Declaration>;
 
+struct ImportDeclaration final : Declaration {
+    ImportDeclaration(SourceLocation location, Token pathToken)
+        : Declaration(DeclarationKind::Import, std::move(location)),
+          path(std::move(pathToken)) {}
+
+    Token path;
+};
+
 struct Parameter {
     SourceLocation location;
     std::string name;
     TypeSyntax type;
+};
+
+struct StructDeclaration final : Declaration {
+    explicit StructDeclaration(SourceLocation location)
+        : Declaration(DeclarationKind::Struct, location) {}
+
+    std::string name;
+    // Fields use the same name/location/type shape as function parameters.
+    std::vector<Parameter> fields;
 };
 
 struct FunctionDeclaration final : Declaration {
@@ -270,6 +334,9 @@ struct FunctionDeclaration final : Declaration {
         : Declaration(DeclarationKind::Function, sourceLocation) {}
 
     std::string name;
+    bool external = false;
+    // Nonempty only for generated C++ bridges; the BasicC name stays local.
+    std::string cppTarget;
     std::vector<Parameter> parameters;
     std::optional<TypeSyntax> returnType;
     std::unique_ptr<BlockStatement> body;

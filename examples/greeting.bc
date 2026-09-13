@@ -1,0 +1,17 @@
+// Build: build/basicc build examples/greeting.bc -o build/greeting
+// Run:   ./build/greeting
+
+fn main() -> int:
+    print("What is your name?");
+    var name = input();
+    print("Hello, " + name + "!");
+    print("Your name has " + string(len(name)) + " bytes.");
+
+    print("Enter a whole number:");
+    var number = int(input());
+    print("Twice that is " + str(number * 2));
+
+    var a = "ready";
+    var b = "rea" + "dy";
+    print(a and b == "ready");
+    return 0;

@@ -1,0 +1,40 @@
+// Build: build/basicc build examples/collections.bc -o build/collections
+// Run:   ./build/collections
+
+struct Person:
+    name: string;
+    score: int;
+
+fn total(values: int[]) -> int:
+    var result = 0;
+    for (var i = 0; i < len(values); i = i + 1):
+        result = result + values[i];
+    return result;
+
+fn main() -> int:
+    var first = Person("Ada", 10);
+    var second = Person("Ada", 10);
+    print(first and second == Person("Ada", 10));
+
+    // Struct assignment copies fields; changing the copy keeps first intact.
+    var copy = first;
+    copy.score = 20;
+    print(first);
+    print(copy);
+
+    // Arrays share their mutable storage when assigned or passed to a function.
+    var people = [first, second];
+    people[1].name = "Grace";
+    print(people);
+
+    int[] scores = [10, 20, 30];
+    var alias = scores;
+    alias[0] = 15;
+    print(scores);
+    print(total(scores));
+    print(scores.length);
+
+    var empty: int[] = [];
+    print(len(empty));
+    print("Hello"[1]);
+    return 0;

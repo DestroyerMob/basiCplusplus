@@ -1,8 +1,8 @@
-// Representative BasicC source for the lexer milestone.
-function maximum(left: float, right: double) -> float:
-    variable result = left;
+fn main() -> int:
+    var a = 3;
+    var b = 5;
+    
+    if (a == 3 && b == 5):
+        print("Done");
 
-    if right > left:
-        result = right; // Choose the larger value.
-
-    return result;
+    return 0;
